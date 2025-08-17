@@ -4,6 +4,7 @@ import {
   useMiniKit,
   useAddFrame,
   useOpenUrl,
+  useComposeCast,
 } from "@coinbase/onchainkit/minikit";
 import {
   Name,
@@ -21,16 +22,16 @@ import {
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Button } from "./components/DemoComponents";
 import { Icon } from "./components/DemoComponents";
-import { Home } from "./components/DemoComponents";
-import { Features } from "./components/DemoComponents";
+import { NotchDashboard } from "./components/NotchDashboard";
 
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const [frameAdded, setFrameAdded] = useState(false);
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   const addFrame = useAddFrame();
   const openUrl = useOpenUrl();
+  const { composeCast } = useComposeCast();
 
   useEffect(() => {
     if (!isFrameReady) {
@@ -43,6 +44,15 @@ export default function App() {
     setFrameAdded(Boolean(frameAdded));
   }, [addFrame]);
 
+  const handleShareProgress = useCallback(async () => {
+    if (composeCast) {
+      await composeCast({
+        text: `🚀 ¡Mira mi progreso en Notch! Soy ${context?.user?.username || `@fid${context?.user?.fid}`} y estoy subiendo de rango. ¡Únete a la aventura!`,
+        embeds: [process.env.NEXT_PUBLIC_URL || 'https://notch.app'], // ← Cambia a array de strings
+      });
+    }
+  }, [composeCast, context]);
+
   const saveFrameButton = useMemo(() => {
     if (context && !context.client.added) {
       return (
@@ -53,7 +63,7 @@ export default function App() {
           className="text-[var(--app-accent)] p-4"
           icon={<Icon name="plus" size="sm" />}
         >
-          Save Frame
+          Guardar App
         </Button>
       );
     }
@@ -62,7 +72,7 @@ export default function App() {
       return (
         <div className="flex items-center space-x-1 text-sm font-medium text-[#0052FF] animate-fade-out">
           <Icon name="check" size="sm" className="text-[#0052FF]" />
-          <span>Saved</span>
+          <span>Guardada</span>
         </div>
       );
     }
@@ -96,8 +106,9 @@ export default function App() {
         </header>
 
         <main className="flex-1">
-          {activeTab === "home" && <Home setActiveTab={setActiveTab} />}
-          {activeTab === "features" && <Features setActiveTab={setActiveTab} />}
+          {activeTab === "dashboard" && (
+            <NotchDashboard onShareProgress={handleShareProgress} />
+          )}
         </main>
 
         <footer className="mt-2 pt-4 flex justify-center">
@@ -107,7 +118,7 @@ export default function App() {
             className="text-[var(--ock-text-foreground-muted)] text-xs"
             onClick={() => openUrl("https://base.org/builders/minikit")}
           >
-            Built on Base with MiniKit
+            Construido en Base con MiniKit
           </Button>
         </footer>
       </div>
