@@ -27,7 +27,7 @@ import { NotchDashboard } from "./components/NotchDashboard";
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const [frameAdded, setFrameAdded] = useState(false);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, ] = useState("dashboard");
 
   const addFrame = useAddFrame();
   const openUrl = useOpenUrl();

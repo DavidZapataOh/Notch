@@ -2,6 +2,19 @@ export type Rank = 'Mini' | 'Core' | 'Plus' | 'Pro' | 'ProMax';
 
 export type Category = 'Builder' | 'Social' | 'Degen' | 'Player';
 
+export interface User {
+  fid: number;
+  username: string;
+  avatar: string;
+  score: number;
+  rank: Rank;
+  level: number;
+  progress: number;
+  badges: Badge[];
+  season: number;
+  lastUpdated: string;
+}
+
 export interface UserScore {
   fid: number;
   username: string;

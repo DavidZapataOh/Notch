@@ -2,36 +2,33 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMiniKit, useAuthenticate, useViewProfile } from '@coinbase/onchainkit/minikit';
-import { UserScore, Category, Rank, EvolutionData, LeaderboardEntry } from '../../lib/types';
-import { RANK_COLORS, ACTIONS, calculateProgress, getNextRank, RANK_THRESHOLDS } from '../../lib/scoring';
-import { Button } from './DemoComponents';
+import { UserScore, Category, Rank, EvolutionData } from '../../lib/types';
+import { getNextRank, RANK_THRESHOLDS } from '../../lib/scoring';
 import { 
   Activity, 
   Users, 
   TrendingUp, 
   Gamepad2, 
-  Crown, 
   Share2, 
   ChevronRight,
   Star,
   Award,
-  Zap,
   Target,
   Home,
   Search,
   CheckSquare,
-  Trophy,
   ArrowUp,
   ArrowDown,
   Minus,
-  Filter,
-  User,
-  MapPin,
   Calendar,
-  Gift,
-  Flame,
-  Clock
+  LucideIcon,
 } from 'lucide-react';
+
+interface AuthenticatedUser {
+  fid: number;
+  username: string;
+  authenticated: boolean;
+}
 
 interface NotchDashboardProps {
   onShareProgress: () => void;
@@ -108,7 +105,7 @@ const RADIUS = {
   nested: (outer: number, gap: number) => outer - gap
 };
 
-const CATEGORY_ICONS: Record<Category, any> = {
+const CATEGORY_ICONS: Record<Category, LucideIcon> = {
   Builder: Activity,
   Social: Users,
   Degen: TrendingUp,
@@ -365,7 +362,6 @@ const AppleRadarChart = ({ userScore, onCategorySelect }: {
 
         {categories.map((category, index) => {
           const labelPos = getLabelPosition(index);
-          const data = userScore.categories[category];
           const IconComponent = CATEGORY_ICONS[category];
           const isSelected = selectedCategory === category;
           const isHovered = hoveredCategory === category;
@@ -803,7 +799,7 @@ const AppleProgressRings = ({ userScore }: { userScore: UserScore }) => {
   );
 };
 
-const AppleBadges = ({ userScore }: { userScore: UserScore }) => {
+const AppleBadges = ({ }: { userScore: UserScore }) => {
   const mockBadges = [
     { id: '1', name: 'Early Adopter', icon: Star },
     { id: '2', name: 'Builder', icon: Activity },
@@ -1163,11 +1159,11 @@ const ExplorerTab = ({ userScore }: { userScore: UserScore }) => {
   );
 };
 
-const TasksTab = ({ userScore, onProtectedAction, loading, authenticatedUser }: {
+const TasksTab = ({ onProtectedAction, loading }: {
   userScore: UserScore,
   onProtectedAction: (actionId: string) => void,
   loading: boolean,
-  authenticatedUser: any
+  authenticatedUser: AuthenticatedUser | null
 }) => {
   const [completedTask, setCompletedTask] = useState<string | null>(null);
 
@@ -1578,7 +1574,7 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
   const { signIn } = useAuthenticate();
   const [userScore, setUserScore] = useState<UserScore | null>(null);
   const [loading, setLoading] = useState(false);
-  const [authenticatedUser, setAuthenticatedUser] = useState<any>(null);
+  const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationType, setCelebrationType] = useState<'success' | 'levelUp' | 'achievement'>('success');
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -1652,7 +1648,11 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
       try {
         if (window.location.hostname === 'localhost') {
           setTimeout(() => {
-            const mockUser = { fid: userFid, username: username };
+            const mockUser: AuthenticatedUser = { 
+              fid: userFid, 
+              username: username,
+              authenticated: true
+            };
             setAuthenticatedUser(mockUser);
             
             if (actionId.includes('deploy')) {
@@ -1670,7 +1670,12 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
         } else {
           const result = await signIn();
           if (result) {
-            setAuthenticatedUser(result);
+            const adaptedUser: AuthenticatedUser = {
+              fid: userFid,
+              username: username,
+              authenticated: true
+            };
+            setAuthenticatedUser(adaptedUser);
             setShowCelebration(true);
             setTimeout(() => setShowCelebration(false), 2500);
           }
