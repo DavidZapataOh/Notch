@@ -390,7 +390,6 @@ function TodoList() {
 function TransactionCard() {
   const { address } = useAccount();
 
-  // Example transaction call - sending 0 ETH to self
   const calls = useMemo(() => address
     ? [
         {

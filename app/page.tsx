@@ -48,7 +48,7 @@ export default function App() {
     if (composeCast) {
       await composeCast({
         text: `🚀 ¡Mira mi progreso en Notch! Soy ${context?.user?.username || `@fid${context?.user?.fid}`} y estoy subiendo de rango. ¡Únete a la aventura!`,
-        embeds: [process.env.NEXT_PUBLIC_URL || 'https://notch.app'], // ← Cambia a array de strings
+        embeds: [process.env.NEXT_PUBLIC_URL || 'https://notch.app'],
       });
     }
   }, [composeCast, context]);
@@ -111,16 +111,6 @@ export default function App() {
           )}
         </main>
 
-        <footer className="mt-2 pt-4 flex justify-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-[var(--ock-text-foreground-muted)] text-xs"
-            onClick={() => openUrl("https://base.org/builders/minikit")}
-          >
-            Construido en Base con MiniKit
-          </Button>
-        </footer>
       </div>
     </div>
   );

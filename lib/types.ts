@@ -32,7 +32,6 @@ export interface UserScore {
   badges: Badge[];
   season: number;
   lastUpdated: string;
-  // Nuevos campos para evolución y ranking
   evolution: EvolutionData[];
   rankings: {
     global: number;
@@ -40,7 +39,7 @@ export interface UserScore {
       [K in Category]: number;
     };
   };
-  totalUsers: number; // Para calcular percentiles
+  totalUsers: number;
 }
 
 export interface EvolutionData {
@@ -89,5 +88,5 @@ export interface LeaderboardEntry {
   score: number;
   rank: Rank;
   position: number;
-  change: number; // Cambio de posición (+/-) desde la semana pasada
+  change: number;
 }
