@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, ArrowUp, ArrowDown, Minus } from 'lucide-react';
-import { UserScore, Category, Rank } from '../../lib/types';
+import { UserScore, Category } from '../../lib/types';
 import { DESIGN_SYSTEM, TYPOGRAPHY, SPACING, RADIUS, CATEGORY_ICONS } from '../constants';
+import Image from 'next/image';
 
 interface LeaderboardEntry {
   fid: number;
@@ -75,7 +76,7 @@ export const ExplorerTab = ({ userScore }: ExplorerTabProps) => {
 
   useEffect(() => {
     fetchLeaderboard(selectedRankingType);
-  }, [selectedRankingType]);
+  }, [selectedRankingType, fetchLeaderboard, userScore.fid]);
 
   const filteredLeaderboard = leaderboard.filter(user => 
     user.username.toLowerCase().includes(searchQuery.toLowerCase())
@@ -232,7 +233,7 @@ export const ExplorerTab = ({ userScore }: ExplorerTabProps) => {
                     </div>
                     
                     <div className="flex items-center" style={{ gap: `${SPACING.md}px` }}>
-                      <img
+                      <Image
                         src={user.avatar}
                         alt={user.username}
                         style={{ 

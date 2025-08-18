@@ -14,7 +14,7 @@ interface TasksTabProps {
   authenticatedUser: AuthenticatedUser | null;
 }
 
-export const TasksTab = ({ userScore, onProtectedAction, loading, authenticatedUser }: TasksTabProps) => {
+export const TasksTab = ({ onProtectedAction, loading }: TasksTabProps) => {
   const [completedTask, setCompletedTask] = useState<string | null>(null);
 
   const dailyTasks = [

@@ -3,7 +3,6 @@
 import {
   useMiniKit,
   useAddFrame,
-  useOpenUrl,
   useComposeCast,
 } from "@coinbase/onchainkit/minikit";
 import {
@@ -30,7 +29,6 @@ export default function App() {
   const [activeTab, ] = useState("dashboard");
 
   const addFrame = useAddFrame();
-  const openUrl = useOpenUrl();
   const { composeCast } = useComposeCast();
 
   useEffect(() => {

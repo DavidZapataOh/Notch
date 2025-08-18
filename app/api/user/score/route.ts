@@ -22,7 +22,7 @@ interface ScoreData {
     Player: { score: number; rank: string; level: number; progress: number };
   };
   primaryCategory: string;
-  badges: any[];
+  badges: string[];
   season: number;
   lastUpdated: string;
   rankings: {
