@@ -89,6 +89,8 @@ export const AppleHeader = ({ userScore, onShareProgress, handleViewProfile, loa
             <Image
               src={userScore.avatar}
               alt={userScore.username}
+              width={64}
+              height={64}
               className="cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg object-cover"
               style={{ 
                 width: '64px',

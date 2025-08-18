@@ -240,6 +240,8 @@ export const ExplorerTab = ({ userScore }: ExplorerTabProps) => {
                       <Image
                         src={user.avatar}
                         alt={user.username}
+                        width={40}
+                        height={40}
                         style={{ 
                           width: '40px',
                           height: '40px',
