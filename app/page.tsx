@@ -45,7 +45,7 @@ export default function App() {
   const handleShareProgress = useCallback(async () => {
     if (composeCast) {
       await composeCast({
-        text: `🚀 ¡Mira mi progreso en Notch! Soy ${context?.user?.username || `@fid${context?.user?.fid}`} y estoy subiendo de rango. ¡Únete a la aventura!`,
+        text: `🚀 Check out my progress on Notch! I'm ${context?.user?.username || `@fid${context?.user?.fid}`} and I'm climbing the ranks. Join the adventure!`,
         embeds: [process.env.NEXT_PUBLIC_URL || 'https://notch.app'],
       });
     }

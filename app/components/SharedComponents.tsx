@@ -84,12 +84,31 @@ export const AppleHeader = ({ userScore, onShareProgress, handleViewProfile, loa
     >
       <div className="flex items-center justify-between" style={{ marginBottom: `${SPACING.xl}px` }}>
         <div className="flex items-center" style={{ gap: `${SPACING.md}px` }}>
+          {userScore.avatar ? (
+            <img
+              src={userScore.avatar}
+              alt={userScore.username}
+              className="cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg object-cover"
+              style={{ 
+                width: '64px',
+                height: '64px',
+                borderRadius: `${RADIUS.lg}px`
+              }}
+              onClick={handleViewProfile}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+                const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                if (fallback) fallback.style.display = 'flex';
+              }}
+            />
+          ) : null}
           <div 
             className="bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg"
             style={{ 
               width: '64px',
               height: '64px',
-              borderRadius: `${RADIUS.lg}px`
+              borderRadius: `${RADIUS.lg}px`,
+              display: userScore.avatar ? 'none' : 'flex'
             }}
             onClick={handleViewProfile}
           >
@@ -101,7 +120,7 @@ export const AppleHeader = ({ userScore, onShareProgress, handleViewProfile, loa
                 letterSpacing: TYPOGRAPHY.letterSpacing.title
               }}
             >
-              {userScore.username.charAt(1)?.toUpperCase() || 'U'}
+              {userScore.username.charAt(0)?.toUpperCase() || 'U'}
             </div>
           </div>
           <div>
@@ -136,6 +155,19 @@ export const AppleHeader = ({ userScore, onShareProgress, handleViewProfile, loa
                 }}
               ></div>
               <span>#{userScore.rankings.global}</span>
+              {/* {currentSeason?.daysRemaining && (
+                <>
+                  <div 
+                    className="rounded-full"
+                    style={{ 
+                      width: '3px', 
+                      height: '3px',
+                      backgroundColor: DESIGN_SYSTEM.content.tertiary
+                    }}
+                  ></div>
+                  <span>{currentSeason.daysRemaining}d left</span>
+                </>
+              )} */}
             </div>
           </div>
         </div>
@@ -222,7 +254,7 @@ export const AppleHeader = ({ userScore, onShareProgress, handleViewProfile, loa
         </div>
         <div className="text-center">
           <div 
-            className="text-white truncate"
+            className="text-white"
             style={{ 
               fontSize: TYPOGRAPHY.sizes.body,
               fontWeight: TYPOGRAPHY.weights.bold,

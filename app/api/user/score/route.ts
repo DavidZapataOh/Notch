@@ -172,17 +172,24 @@ async function calculateUserScore(profile: FarcasterProfile): Promise<ScoreData>
 async function calculateGlobalRanking(fid: number, score: number): Promise<number> {
   const maxScore = 2000;
   const normalizedScore = Math.min(score / maxScore, 1);
-  return Math.max(1, Math.floor((1 - normalizedScore) * 1000));
+  
+  const percentile = Math.pow(normalizedScore, 0.5);
+  const totalUsers = 10000;
+  
+  return Math.max(1, Math.floor((1 - percentile) * totalUsers));
 }
 
 async function calculateCategoryRanking(fid: number, category: string, score: number): Promise<number> {
   const maxScore = 500;
   const normalizedScore = Math.min(score / maxScore, 1);
-  return Math.max(1, Math.floor((1 - normalizedScore) * 100));
+  const percentile = Math.pow(normalizedScore, 0.6);
+  const categoryUsers = 5000;
+  
+  return Math.max(1, Math.floor((1 - percentile) * categoryUsers));
 }
 
 async function getTotalUsers(): Promise<number> {
-  return 1547;
+  return 10000;
 }
 
 export async function GET(request: Request) {

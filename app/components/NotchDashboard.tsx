@@ -99,7 +99,8 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationType, setCelebrationType] = useState<'success' | 'levelUp' | 'achievement'>('success');
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
-  
+  const [currentSeason, setCurrentSeason] = useState<any>(null);
+
   const userFid = context?.user?.fid || 12345;
   const username = context?.user?.username || 'Demo User';
   
@@ -154,42 +155,58 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
     } catch (error) {
       console.error('Error fetching user score:', error);
       
-      setUserScore({
-        fid: userFid,
-        username: username || `@fid${userFid}`,
-        avatar: '',
-        totalScore: 1250,
-        categories: {
-          Builder: { score: 450, rank: 'Plus', level: 3, progress: 85 },
-          Social: { score: 320, rank: 'Plus', level: 2, progress: 65 },
-          Degen: { score: 280, rank: 'Core', level: 2, progress: 90 },
-          Player: { score: 200, rank: 'Core', level: 1, progress: 40 },
-        },
-        primaryCategory: 'Builder',
-        badges: [],
-        season: 1,
-        lastUpdated: new Date().toISOString(),
-        evolution: [],
-        rankings: {
-          global: 4,
+      if (window.location.hostname === 'localhost') {
+        setUserScore({
+          fid: userFid,
+          username: username || `@fid${userFid}`,
+          avatar: '',
+          totalScore: 1250,
           categories: {
-            Builder: 2,
-            Social: 8,
-            Degen: 12,
-            Player: 25,
-          }
-        },
-        totalUsers: 1547,
-      });
-      
+            Builder: { score: 450, rank: 'Plus', level: 3, progress: 85 },
+            Social: { score: 320, rank: 'Plus', level: 2, progress: 65 },
+            Degen: { score: 280, rank: 'Core', level: 2, progress: 90 },
+            Player: { score: 200, rank: 'Core', level: 1, progress: 40 },
+          },
+          primaryCategory: 'Builder',
+          badges: [],
+          season: 1,
+          lastUpdated: new Date().toISOString(),
+          evolution: [],
+          rankings: {
+            global: 4,
+            categories: {
+              Builder: 2,
+              Social: 8,
+              Degen: 12,
+              Player: 25,
+            }
+          },
+          totalUsers: 1547,
+        });
+      } else {
+        setUserScore(null);
+      }
     } finally {
       setLoading(false);
     }
   }, [userFid, username]);
 
+  const fetchCurrentSeason = useCallback(async () => {
+    try {
+      const response = await fetch('/api/seasons');
+      if (response.ok) {
+        const season = await response.json();
+        setCurrentSeason(season);
+      }
+    } catch (error) {
+      console.error('Error fetching season:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchUserScore(userFid);
-  }, [fetchUserScore, userFid]);
+    fetchCurrentSeason();
+  }, [fetchUserScore, userFid, fetchCurrentSeason]);
 
   const handleProtectedAction = useCallback(async (actionId: string) => {
     if (!authenticatedUser) {
