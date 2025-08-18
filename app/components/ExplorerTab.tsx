@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { UserScore, Category } from '../../lib/types';
 import { DESIGN_SYSTEM, TYPOGRAPHY, SPACING, RADIUS, CATEGORY_ICONS } from '../constants';
@@ -26,7 +26,7 @@ export const ExplorerTab = ({ userScore }: ExplorerTabProps) => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchLeaderboard = async (category: string = 'global') => {
+  const fetchLeaderboard = useCallback(async (category: string = 'global') => {
     try {
       setLoading(true);
       const response = await fetch(`/api/leaderboard?category=${category}&limit=50`);
@@ -59,20 +59,24 @@ export const ExplorerTab = ({ userScore }: ExplorerTabProps) => {
     } catch (error) {
       console.error('Error fetching leaderboard:', error);
       
-      const fallbackData = [
-        { fid: 3, username: 'dwr.eth', score: 2500, rank: 'ProMax', change: 0, position: 1 },
-        { fid: 5650, username: 'vitalik.eth', score: 2200, rank: 'ProMax', change: 1, position: 2 },
-        { fid: userScore.fid, username: userScore.username, score: userScore.totalScore, rank: userScore.categories[userScore.primaryCategory].rank, change: 2, position: userScore.rankings.global },
-      ].map(entry => ({
-        ...entry,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.username}`
-      }));
-      
-      setLeaderboard(fallbackData);
+      if (window.location.hostname === 'localhost') {
+        const fallbackData = [
+          { fid: 3, username: 'dwr.eth', score: 2500, rank: 'ProMax', change: 0, position: 1 },
+          { fid: 5650, username: 'vitalik.eth', score: 2200, rank: 'ProMax', change: 1, position: 2 },
+          { fid: userScore.fid, username: userScore.username, score: userScore.totalScore, rank: userScore.categories[userScore.primaryCategory].rank, change: 2, position: userScore.rankings.global },
+        ].map(entry => ({
+          ...entry,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.username}`
+        }));
+        
+        setLeaderboard(fallbackData);
+      } else {
+        setLeaderboard([]);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [userScore]);
 
   useEffect(() => {
     fetchLeaderboard(selectedRankingType);

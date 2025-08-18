@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMiniKit, useAuthenticate, useViewProfile } from '@coinbase/onchainkit/minikit';
-import { UserScore, EvolutionData } from '../../lib/types';
+import { UserScore, EvolutionData, Season } from '../../lib/types';
 import { BottomNavigation } from './BottomNavigation';
 import { DashboardTab } from './DashboardTab';
 import { ExplorerTab } from './ExplorerTab';
@@ -99,7 +99,7 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationType, setCelebrationType] = useState<'success' | 'levelUp' | 'achievement'>('success');
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
-  const [currentSeason, setCurrentSeason] = useState<any>(null);
+  const [, setCurrentSeason] = useState<Season | null>(null);
 
   const userFid = context?.user?.fid || 12345;
   const username = context?.user?.username || 'Demo User';

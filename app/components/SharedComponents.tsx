@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { Share2 } from 'lucide-react';
 import { UserScore } from '../../lib/types';
 import { DESIGN_SYSTEM, TYPOGRAPHY, SPACING, RADIUS } from '../constants';
+import Image from 'next/image';
 
 export const EmotionalFeedback = ({ 
   show, 
@@ -85,7 +86,7 @@ export const AppleHeader = ({ userScore, onShareProgress, handleViewProfile, loa
       <div className="flex items-center justify-between" style={{ marginBottom: `${SPACING.xl}px` }}>
         <div className="flex items-center" style={{ gap: `${SPACING.md}px` }}>
           {userScore.avatar ? (
-            <img
+            <Image
               src={userScore.avatar}
               alt={userScore.username}
               className="cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg object-cover"
