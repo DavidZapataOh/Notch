@@ -104,69 +104,158 @@ async function fetchFarcasterProfile(fid: number): Promise<FarcasterProfile | nu
 async function calculateUserScore(profile: FarcasterProfile): Promise<ScoreData> {
   const fid = profile.fid;
   
-  const socialScore = Math.min(
-    Math.floor((profile.follower_count || 0) * 0.1) + 
-    Math.floor((profile.following_count || 0) * 0.05),
-    500
-  );
-  
-  const builderScore = (profile.verified_addresses?.length || 0) * 50;
-  
-  const degenScore = Math.floor(Math.random() * 200);
-  
-  const playerScore = Math.floor(Math.random() * 150);
-  
-  const totalScore = socialScore + builderScore + degenScore + playerScore;
-  
-  const scores = { Social: socialScore, Builder: builderScore, Degen: degenScore, Player: playerScore };
-  const primaryCategory = Object.entries(scores).reduce((a, b) => scores[a[0] as keyof typeof scores] > scores[b[0] as keyof typeof scores] ? a : b)[0];
-  
-  return {
-    fid,
-    username: profile.username,
-    avatar: profile.pfp_url || '',
-    totalScore,
-    categories: {
-      Builder: {
-        score: builderScore,
-        rank: calculateRank(builderScore),
-        level: calculateLevel(builderScore),
-        progress: calculateProgress(builderScore),
-      },
-      Social: {
-        score: socialScore,
-        rank: calculateRank(socialScore),
-        level: calculateLevel(socialScore),
-        progress: calculateProgress(socialScore),
-      },
-      Degen: {
-        score: degenScore,
-        rank: calculateRank(degenScore),
-        level: calculateLevel(degenScore),
-        progress: calculateProgress(degenScore),
-      },
-      Player: {
-        score: playerScore,
-        rank: calculateRank(playerScore),
-        level: calculateLevel(playerScore),
-        progress: calculateProgress(playerScore),
-      },
-    },
-    primaryCategory,
-    badges: [],
-    season: 1,
-    lastUpdated: new Date().toISOString(),
-    rankings: {
-      global: await calculateGlobalRanking(fid, totalScore),
+  try {
+    const [socialRes, onchainRes, playerRes] = await Promise.all([
+      fetch(`${process.env.NEXT_PUBLIC_URL}/api/scoring/farcaster`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fid })
+      }),
+      fetch(`${process.env.NEXT_PUBLIC_URL}/api/scoring/onchain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fid })
+      }),
+      fetch(`${process.env.NEXT_PUBLIC_URL}/api/scoring/player`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fid })
+      })
+    ]);
+    
+    const socialData = await socialRes.json();
+    const onchainData = await onchainRes.json();
+    const playerData = await playerRes.json();
+    
+    const socialScore = socialData.socialScore || 0;
+    const builderScore = onchainData.builderScore || 0;
+    const degenScore = onchainData.degenScore || 0;
+    const playerScore = playerData.playerScore || 0;
+    
+    const totalScore = socialScore + builderScore + degenScore + playerScore;
+    
+    const scores = { Social: socialScore, Builder: builderScore, Degen: degenScore, Player: playerScore };
+    const primaryCategory = Object.entries(scores).reduce((a, b) => scores[a[0] as keyof typeof scores] > scores[b[0] as keyof typeof scores] ? a : b)[0];
+    
+    return {
+      fid,
+      username: profile.username,
+      avatar: profile.pfp_url || '',
+      totalScore,
       categories: {
-        Builder: await calculateCategoryRanking(fid, 'Builder', builderScore),
-        Social: await calculateCategoryRanking(fid, 'Social', socialScore),
-        Degen: await calculateCategoryRanking(fid, 'Degen', degenScore),
-        Player: await calculateCategoryRanking(fid, 'Player', playerScore),
+        Builder: {
+          score: builderScore,
+          rank: calculateRank(builderScore),
+          level: calculateLevel(builderScore),
+          progress: calculateProgress(builderScore),
+        },
+        Social: {
+          score: socialScore,
+          rank: calculateRank(socialScore),
+          level: calculateLevel(socialScore),
+          progress: calculateProgress(socialScore),
+        },
+        Degen: {
+          score: degenScore,
+          rank: calculateRank(degenScore),
+          level: calculateLevel(degenScore),
+          progress: calculateProgress(degenScore),
+        },
+        Player: {
+          score: playerScore,
+          rank: calculateRank(playerScore),
+          level: calculateLevel(playerScore),
+          progress: calculateProgress(playerScore),
+        },
       },
-    },
-    totalUsers: await getTotalUsers(),
-  };
+      primaryCategory,
+      badges: [],
+      season: await getCurrentSeason(),
+      lastUpdated: new Date().toISOString(),
+      rankings: {
+        global: await calculateGlobalRanking(fid, totalScore),
+        categories: {
+          Builder: await calculateCategoryRanking(fid, 'Builder', builderScore),
+          Social: await calculateCategoryRanking(fid, 'Social', socialScore),
+          Degen: await calculateCategoryRanking(fid, 'Degen', degenScore),
+          Player: await calculateCategoryRanking(fid, 'Player', playerScore),
+        },
+      },
+      totalUsers: await getTotalUsers(),
+    };
+  } catch (error) {
+    console.error('Error calculating comprehensive score:', error);
+    const socialScore = Math.min(
+      Math.floor((profile.follower_count || 0) * 0.1) + 
+      Math.floor((profile.following_count || 0) * 0.05),
+      500
+    );
+    
+    const builderScore = (profile.verified_addresses?.length || 0) * 50;
+    const degenScore = Math.floor(Math.random() * 200);
+    const playerScore = Math.floor(Math.random() * 150);
+    const totalScore = socialScore + builderScore + degenScore + playerScore;
+    
+    const scores = { Social: socialScore, Builder: builderScore, Degen: degenScore, Player: playerScore };
+    const primaryCategory = Object.entries(scores).reduce((a, b) => scores[a[0] as keyof typeof scores] > scores[b[0] as keyof typeof scores] ? a : b)[0];
+    
+    return {
+      fid: profile.fid,
+      username: profile.username,
+      avatar: profile.pfp_url || '',
+      totalScore,
+      categories: {
+        Builder: {
+          score: builderScore,
+          rank: calculateRank(builderScore),
+          level: calculateLevel(builderScore),
+          progress: calculateProgress(builderScore),
+        },
+        Social: {
+          score: socialScore,
+          rank: calculateRank(socialScore),
+          level: calculateLevel(socialScore),
+          progress: calculateProgress(socialScore),
+        },
+        Degen: {
+          score: degenScore,
+          rank: calculateRank(degenScore),
+          level: calculateLevel(degenScore),
+          progress: calculateProgress(degenScore),
+        },
+        Player: {
+          score: playerScore,
+          rank: calculateRank(playerScore),
+          level: calculateLevel(playerScore),
+          progress: calculateProgress(playerScore),
+        },
+      },
+      primaryCategory,
+      badges: [],
+      season: 1,
+      lastUpdated: new Date().toISOString(),
+      rankings: {
+        global: await calculateGlobalRanking(profile.fid, totalScore),
+        categories: {
+          Builder: await calculateCategoryRanking(profile.fid, 'Builder', builderScore),
+          Social: await calculateCategoryRanking(profile.fid, 'Social', socialScore),
+          Degen: await calculateCategoryRanking(profile.fid, 'Degen', degenScore),
+          Player: await calculateCategoryRanking(profile.fid, 'Player', playerScore),
+        },
+      },
+      totalUsers: await getTotalUsers(),
+    };
+  }
+}
+
+async function getCurrentSeason(): Promise<number> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_URL}/api/seasons`);
+    const season = await response.json();
+    return season.id || 1;
+  } catch {
+    return 1;
+  }
 }
 
 async function calculateGlobalRanking(fid: number, score: number): Promise<number> {

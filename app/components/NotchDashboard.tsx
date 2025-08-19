@@ -206,6 +206,14 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
   useEffect(() => {
     fetchUserScore(userFid);
     fetchCurrentSeason();
+    
+    if (userFid && userFid !== 12345) {
+      fetch('/api/scoring/player', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fid: userFid })
+      }).catch(error => console.error('Error registering activity:', error));
+    }
   }, [fetchUserScore, userFid, fetchCurrentSeason]);
 
   const handleProtectedAction = useCallback(async (actionId: string) => {
