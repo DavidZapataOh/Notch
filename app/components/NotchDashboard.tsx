@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMiniKit, useAuthenticate, useViewProfile } from '@coinbase/onchainkit/minikit';
-import { UserScore, EvolutionData, Season } from '../../lib/types';
+import { useScoring, useLeaderboards, useTasks, useAutoVerification } from '../../lib/hooks/useScoring';
 import { BottomNavigation } from './BottomNavigation';
 import { DashboardTab } from './DashboardTab';
 import { ExplorerTab } from './ExplorerTab';
@@ -93,132 +93,101 @@ const RADIUS = {
 export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
   const { context } = useMiniKit();
   const { signIn } = useAuthenticate();
-  const [userScore, setUserScore] = useState<UserScore | null>(null);
-  const [loading, setLoading] = useState(false);
+  
+  // Usar el nuevo sistema de scoring
+  const {
+    userScore,
+    userBadges,
+    completedTasks,
+    recentActivities,
+    availableTasks,
+    loading,
+    error,
+    refreshScore,
+    addPoints,
+    completeTask,
+    verifyActivity,
+    progress
+  } = useScoring(context?.user?.fid);
+  
+  const { globalLeaderboard, categoryLeaderboards } = useLeaderboards();
+  const { tasks } = useTasks();
+  const { verifyUserActivities } = useAutoVerification(context?.user?.fid);
+  
   const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationType, setCelebrationType] = useState<'success' | 'levelUp' | 'achievement'>('success');
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
-  const [, setCurrentSeason] = useState<Season | null>(null);
 
   const userFid = context?.user?.fid || 12345;
   const username = context?.user?.username || 'Demo User';
+
+  // Función para adaptar UserScoreData a UserScore
+  const adaptUserScore = useCallback((scoreData: any): any => {
+    if (!scoreData) return null;
+    
+    return {
+      fid: scoreData.fid,
+      username: username || `@fid${scoreData.fid}`,
+      avatar: '',
+      totalScore: scoreData.totalScore,
+      categories: {
+        Builder: { 
+          score: scoreData.categoryScores.Builder, 
+          rank: scoreData.rank, 
+          level: scoreData.level, 
+          progress: ((scoreData.categoryScores.Builder % 100) / 100) * 100 
+        },
+        Social: { 
+          score: scoreData.categoryScores.Social, 
+          rank: scoreData.rank, 
+          level: scoreData.level, 
+          progress: ((scoreData.categoryScores.Social % 100) / 100) * 100 
+        },
+        Degen: { 
+          score: scoreData.categoryScores.Degen, 
+          rank: scoreData.rank, 
+          level: scoreData.level, 
+          progress: ((scoreData.categoryScores.Degen % 100) / 100) * 100 
+        },
+        Player: { 
+          score: scoreData.categoryScores.Player, 
+          rank: scoreData.rank, 
+          level: scoreData.level, 
+          progress: ((scoreData.categoryScores.Player % 100) / 100) * 100 
+        },
+      },
+      primaryCategory: 'Builder', // Determinar dinámicamente
+      badges: userBadges.map(badge => ({
+        id: badge.badgeId,
+        name: badge.badgeName,
+        description: '',
+        category: badge.category,
+        rank: badge.rank,
+        earnedAt: badge.earnedAt,
+        imageUrl: ''
+      })),
+      season: scoreData.season,
+      lastUpdated: scoreData.lastUpdated,
+      evolution: [],
+      rankings: {
+        global: 0,
+        categories: {
+          Builder: 0,
+          Social: 0,
+          Degen: 0,
+          Player: 0,
+        }
+      },
+      totalUsers: 0,
+    };
+  }, [username, userBadges]);
   
   const viewProfile = useViewProfile();
 
-  const fetchUserScore = useCallback(async (fid: number) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/user/score?fid=${fid}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch user score');
-      }
-      
-      const scoreData = await response.json();
-      
-      const generateEvolution = (): EvolutionData[] => {
-        const data: EvolutionData[] = [];
-        const today = new Date();
-        
-        for (let i = 29; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(today.getDate() - i);
-          
-          const baseScore = scoreData.totalScore * (0.7 + (29 - i) * 0.01);
-          const variation = Math.random() * 100 - 50;
-          
-          data.push({
-            date: date.toISOString(),
-            totalScore: Math.max(0, Math.floor(baseScore + variation)),
-            categoryScores: {
-              Builder: Math.floor((baseScore + variation) * 0.4),
-              Social: Math.floor((baseScore + variation) * 0.3),
-              Degen: Math.floor((baseScore + variation) * 0.2),
-              Player: Math.floor((baseScore + variation) * 0.1),
-            },
-            rank: scoreData.categories[scoreData.primaryCategory].rank,
-            primaryCategory: scoreData.primaryCategory
-          });
-        }
-        
-        return data;
-      };
-
-      const enrichedScoreData = {
-        ...scoreData,
-        evolution: generateEvolution(),
-      };
-      
-      setUserScore(enrichedScoreData);
-      
-    } catch (error) {
-      console.error('Error fetching user score:', error);
-      
-      if (window.location.hostname === 'localhost') {
-        setUserScore({
-          fid: userFid,
-          username: username || `@fid${userFid}`,
-          avatar: '',
-          totalScore: 1250,
-          categories: {
-            Builder: { score: 450, rank: 'Plus', level: 3, progress: 85 },
-            Social: { score: 320, rank: 'Plus', level: 2, progress: 65 },
-            Degen: { score: 280, rank: 'Core', level: 2, progress: 90 },
-            Player: { score: 200, rank: 'Core', level: 1, progress: 40 },
-          },
-          primaryCategory: 'Builder',
-          badges: [],
-          season: 1,
-          lastUpdated: new Date().toISOString(),
-          evolution: [],
-          rankings: {
-            global: 4,
-            categories: {
-              Builder: 2,
-              Social: 8,
-              Degen: 12,
-              Player: 25,
-            }
-          },
-          totalUsers: 1547,
-        });
-      } else {
-        setUserScore(null);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [userFid, username]);
-
-  const fetchCurrentSeason = useCallback(async () => {
-    try {
-      const response = await fetch('/api/seasons');
-      if (response.ok) {
-        const season = await response.json();
-        setCurrentSeason(season);
-      }
-    } catch (error) {
-      console.error('Error fetching season:', error);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchUserScore(userFid);
-    fetchCurrentSeason();
-    
-    if (userFid && userFid !== 12345) {
-      fetch('/api/scoring/player', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid: userFid })
-      }).catch(error => console.error('Error registering activity:', error));
-    }
-  }, [fetchUserScore, userFid, fetchCurrentSeason]);
-
+  // Función para manejar acciones protegidas
   const handleProtectedAction = useCallback(async (actionId: string) => {
     if (!authenticatedUser) {
-      setLoading(true);
       try {
         if (window.location.hostname === 'localhost') {
           setTimeout(() => {
@@ -239,7 +208,6 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
             
             setShowCelebration(true);
             setTimeout(() => setShowCelebration(false), 2500);
-            setLoading(false);
           }, 1000);
         } else {
           const result = await signIn();
@@ -253,11 +221,9 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
             setShowCelebration(true);
             setTimeout(() => setShowCelebration(false), 2500);
           }
-          setLoading(false);
         }
       } catch (error) {
         console.error('Error en autenticación:', error);
-        setLoading(false);
       }
     } else {
       setCelebrationType('success');
@@ -265,10 +231,10 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
       setTimeout(() => setShowCelebration(false), 2000);
       
       setTimeout(() => {
-        fetchUserScore(userFid);
+        refreshScore();
       }, 1000);
     }
-  }, [authenticatedUser, signIn, userFid, username, fetchUserScore]);
+  }, [authenticatedUser, signIn, userFid, username, refreshScore]);
 
   const handleViewProfile = useCallback(() => {
     if (window.location.hostname === 'localhost') {
@@ -279,7 +245,9 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
     }
   }, [viewProfile, userFid, username]);
 
-  if (!userScore) {
+  const adaptedUserScore = adaptUserScore(userScore);
+
+  if (!adaptedUserScore) {
     return (
       <div 
         className="flex items-center justify-center"
@@ -384,7 +352,7 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
         >
           {activeTab === 'dashboard' && (
             <DashboardTab 
-              userScore={userScore}
+              userScore={adaptedUserScore}
               onShareProgress={onShareProgress}
               handleViewProfile={handleViewProfile}
               loading={loading}
@@ -392,12 +360,12 @@ export function NotchDashboard({ onShareProgress }: NotchDashboardProps) {
           )}
 
           {activeTab === 'explorer' && (
-            <ExplorerTab userScore={userScore} />
+            <ExplorerTab userScore={adaptedUserScore} />
           )}
 
           {activeTab === 'tasks' && (
             <TasksTab 
-              userScore={userScore}
+              userScore={adaptedUserScore}
               onProtectedAction={handleProtectedAction}
               loading={loading}
               authenticatedUser={authenticatedUser}

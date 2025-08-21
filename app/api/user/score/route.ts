@@ -1,349 +1,158 @@
-import { NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
+import { NextRequest, NextResponse } from 'next/server';
+import { easClient } from '@/lib/eas-client';
+import { scoringEngine } from '@/lib/scoring-engine';
 
-interface FarcasterProfile {
-  fid: number;
-  username: string;
-  pfp_url?: string;
-  follower_count?: number;
-  following_count?: number;
-  verified_addresses?: string[];
-}
-
-interface ScoreData {
-  fid: number;
-  username: string;
-  avatar: string;
-  totalScore: number;
-  categories: {
-    Builder: { score: number; rank: string; level: number; progress: number };
-    Social: { score: number; rank: string; level: number; progress: number };
-    Degen: { score: number; rank: string; level: number; progress: number };
-    Player: { score: number; rank: string; level: number; progress: number };
-  };
-  primaryCategory: string;
-  badges: string[];
-  season: number;
-  lastUpdated: string;
-  rankings: {
-    global: number;
-    categories: {
-      Builder: number;
-      Social: number;
-      Degen: number;
-      Player: number;
-    };
-  };
-  totalUsers: number;
-}
-
-const RANK_THRESHOLDS = {
-  Mini: 0,
-  Core: 100,
-  Plus: 300,
-  Pro: 600,
-  ProMax: 1000,
-};
-
-function calculateRank(score: number): string {
-  if (score >= RANK_THRESHOLDS.ProMax) return 'ProMax';
-  if (score >= RANK_THRESHOLDS.Pro) return 'Pro';
-  if (score >= RANK_THRESHOLDS.Plus) return 'Plus';
-  if (score >= RANK_THRESHOLDS.Core) return 'Core';
-  return 'Mini';
-}
-
-function calculateLevel(score: number): number {
-  return Math.floor(score / 50) + 1;
-}
-
-function calculateProgress(score: number): number {
-  const currentRank = calculateRank(score);
-  const rankKeys = Object.keys(RANK_THRESHOLDS) as (keyof typeof RANK_THRESHOLDS)[];
-  const currentRankIndex = rankKeys.indexOf(currentRank as keyof typeof RANK_THRESHOLDS);
-  
-  if (currentRankIndex === rankKeys.length - 1) return 100;
-  
-  const currentThreshold = RANK_THRESHOLDS[currentRank as keyof typeof RANK_THRESHOLDS];
-  const nextRank = rankKeys[currentRankIndex + 1];
-  const nextThreshold = RANK_THRESHOLDS[nextRank];
-  
-  const progress = ((score - currentThreshold) / (nextThreshold - currentThreshold)) * 100;
-  return Math.min(Math.max(progress, 0), 100);
-}
-
-async function fetchFarcasterProfile(fid: number): Promise<FarcasterProfile | null> {
-  try {
-    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
-      headers: {
-        'api_key': process.env.NEYNAR_API_KEY || '',
-      },
-    });
-    
-    if (!response.ok) return null;
-    
-    const data = await response.json();
-    const user = data.users?.[0];
-    
-    if (!user) return null;
-    
-    return {
-      fid: user.fid,
-      username: user.username,
-      pfp_url: user.pfp_url,
-      follower_count: user.follower_count,
-      following_count: user.following_count,
-      verified_addresses: user.verified_addresses?.eth_addresses || [],
-    };
-  } catch (error) {
-    console.error('Error fetching Farcaster profile:', error);
-    return null;
-  }
-}
-
-async function calculateUserScore(profile: FarcasterProfile): Promise<ScoreData> {
-  const fid = profile.fid;
-  
-  try {
-    const [socialRes, onchainRes, playerRes] = await Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_URL}/api/scoring/farcaster`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid })
-      }),
-      fetch(`${process.env.NEXT_PUBLIC_URL}/api/scoring/onchain`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid })
-      }),
-      fetch(`${process.env.NEXT_PUBLIC_URL}/api/scoring/player`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid })
-      })
-    ]);
-    
-    const socialData = await socialRes.json();
-    const onchainData = await onchainRes.json();
-    const playerData = await playerRes.json();
-    
-    const socialScore = socialData.socialScore || 0;
-    const builderScore = onchainData.builderScore || 0;
-    const degenScore = onchainData.degenScore || 0;
-    const playerScore = playerData.playerScore || 0;
-    
-    const totalScore = socialScore + builderScore + degenScore + playerScore;
-    
-    const scores = { Social: socialScore, Builder: builderScore, Degen: degenScore, Player: playerScore };
-    const primaryCategory = Object.entries(scores).reduce((a, b) => scores[a[0] as keyof typeof scores] > scores[b[0] as keyof typeof scores] ? a : b)[0];
-    
-    return {
-      fid,
-      username: profile.username,
-      avatar: profile.pfp_url || '',
-      totalScore,
-      categories: {
-        Builder: {
-          score: builderScore,
-          rank: calculateRank(builderScore),
-          level: calculateLevel(builderScore),
-          progress: calculateProgress(builderScore),
-        },
-        Social: {
-          score: socialScore,
-          rank: calculateRank(socialScore),
-          level: calculateLevel(socialScore),
-          progress: calculateProgress(socialScore),
-        },
-        Degen: {
-          score: degenScore,
-          rank: calculateRank(degenScore),
-          level: calculateLevel(degenScore),
-          progress: calculateProgress(degenScore),
-        },
-        Player: {
-          score: playerScore,
-          rank: calculateRank(playerScore),
-          level: calculateLevel(playerScore),
-          progress: calculateProgress(playerScore),
-        },
-      },
-      primaryCategory,
-      badges: [],
-      season: await getCurrentSeason(),
-      lastUpdated: new Date().toISOString(),
-      rankings: {
-        global: await calculateGlobalRanking(fid, totalScore),
-        categories: {
-          Builder: await calculateCategoryRanking(fid, 'Builder', builderScore),
-          Social: await calculateCategoryRanking(fid, 'Social', socialScore),
-          Degen: await calculateCategoryRanking(fid, 'Degen', degenScore),
-          Player: await calculateCategoryRanking(fid, 'Player', playerScore),
-        },
-      },
-      totalUsers: await getTotalUsers(),
-    };
-  } catch (error) {
-    console.error('Error calculating comprehensive score:', error);
-    const socialScore = Math.min(
-      Math.floor((profile.follower_count || 0) * 0.1) + 
-      Math.floor((profile.following_count || 0) * 0.05),
-      500
-    );
-    
-    const builderScore = (profile.verified_addresses?.length || 0) * 50;
-    const degenScore = Math.floor(Math.random() * 200);
-    const playerScore = Math.floor(Math.random() * 150);
-    const totalScore = socialScore + builderScore + degenScore + playerScore;
-    
-    const scores = { Social: socialScore, Builder: builderScore, Degen: degenScore, Player: playerScore };
-    const primaryCategory = Object.entries(scores).reduce((a, b) => scores[a[0] as keyof typeof scores] > scores[b[0] as keyof typeof scores] ? a : b)[0];
-    
-    return {
-      fid: profile.fid,
-      username: profile.username,
-      avatar: profile.pfp_url || '',
-      totalScore,
-      categories: {
-        Builder: {
-          score: builderScore,
-          rank: calculateRank(builderScore),
-          level: calculateLevel(builderScore),
-          progress: calculateProgress(builderScore),
-        },
-        Social: {
-          score: socialScore,
-          rank: calculateRank(socialScore),
-          level: calculateLevel(socialScore),
-          progress: calculateProgress(socialScore),
-        },
-        Degen: {
-          score: degenScore,
-          rank: calculateRank(degenScore),
-          level: calculateLevel(degenScore),
-          progress: calculateProgress(degenScore),
-        },
-        Player: {
-          score: playerScore,
-          rank: calculateRank(playerScore),
-          level: calculateLevel(playerScore),
-          progress: calculateProgress(playerScore),
-        },
-      },
-      primaryCategory,
-      badges: [],
-      season: 1,
-      lastUpdated: new Date().toISOString(),
-      rankings: {
-        global: await calculateGlobalRanking(profile.fid, totalScore),
-        categories: {
-          Builder: await calculateCategoryRanking(profile.fid, 'Builder', builderScore),
-          Social: await calculateCategoryRanking(profile.fid, 'Social', socialScore),
-          Degen: await calculateCategoryRanking(profile.fid, 'Degen', degenScore),
-          Player: await calculateCategoryRanking(profile.fid, 'Player', playerScore),
-        },
-      },
-      totalUsers: await getTotalUsers(),
-    };
-  }
-}
-
-async function getCurrentSeason(): Promise<number> {
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_URL}/api/seasons`);
-    const season = await response.json();
-    return season.id || 1;
-  } catch {
-    return 1;
-  }
-}
-
-async function calculateGlobalRanking(fid: number, score: number): Promise<number> {
-  const maxScore = 2000;
-  const normalizedScore = Math.min(score / maxScore, 1);
-  
-  const percentile = Math.pow(normalizedScore, 0.5);
-  const totalUsers = 10000;
-  
-  return Math.max(1, Math.floor((1 - percentile) * totalUsers));
-}
-
-async function calculateCategoryRanking(fid: number, category: string, score: number): Promise<number> {
-  const maxScore = 500;
-  const normalizedScore = Math.min(score / maxScore, 1);
-  const percentile = Math.pow(normalizedScore, 0.6);
-  const categoryUsers = 5000;
-  
-  return Math.max(1, Math.floor((1 - percentile) * categoryUsers));
-}
-
-async function getTotalUsers(): Promise<number> {
-  return 10000;
-}
-
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const fid = searchParams.get('fid');
-    
+
     if (!fid) {
       return NextResponse.json(
-        { error: 'FID is required' },
+        { error: 'FID parameter is required' },
         { status: 400 }
       );
     }
+
+    const userFid = parseInt(fid);
     
-    const fidNumber = parseInt(fid);
-    if (isNaN(fidNumber)) {
+    const userScore = await scoringEngine.getUserScore(userFid);
+    
+    if (!userScore) {
       return NextResponse.json(
-        { error: 'Invalid FID' },
-        { status: 400 }
-      );
-    }
-    
-    const cacheKey = `notch:score:${fidNumber}`;
-    
-    if (redis) {
-      try {
-        const cachedScore = await redis.get(cacheKey);
-        if (cachedScore) {
-          console.log(`✅ CACHE HIT para FID ${fidNumber} - Datos servidos desde Redis`);
-          return NextResponse.json(JSON.parse(cachedScore as string));
-        }
-        console.log(`❌ CACHE MISS para FID ${fidNumber} - Calculando datos...`);
-      } catch (cacheError) {
-        console.warn('⚠️ Error al leer cache:', cacheError);
-      }
-    } else {
-      console.log('⚠️ Redis no configurado - Sin cache');
-    }
-    
-    console.log(`🔍 Obteniendo perfil de Farcaster para FID ${fidNumber}...`);
-    const profile = await fetchFarcasterProfile(fidNumber);
-    
-    if (!profile) {
-      return NextResponse.json(
-        { error: 'User not found' },
+        { error: 'User score not found' },
         { status: 404 }
       );
     }
-    
-    console.log(`🧮 Calculando puntuación para ${profile.username}...`);
-    const scoreData = await calculateUserScore(profile);
-    
-    if (redis) {
-      try {
-        await redis.setex(cacheKey, 300, JSON.stringify(scoreData));
-        console.log(`💾 Datos guardados en cache para FID ${fidNumber} por 5 minutos`);
-      } catch (cacheError) {
-        console.warn('⚠️ Error al guardar en cache:', cacheError);  
-      }
+
+    const [userBadges, completedTasks, activityLog] = await Promise.all([
+      easClient.getUserBadges(userFid),
+      easClient.getUserTaskCompletions(userFid),
+      easClient.getUserActivityLog(userFid, 50)
+    ]);
+
+    const globalLeaderboard = await easClient.getGlobalLeaderboard(1000);
+    const userRanking = globalLeaderboard.findIndex(score => score.fid === userFid) + 1;
+
+    const categoryRankings = {
+      Builder: 0,
+      Social: 0,
+      Degen: 0,
+      Player: 0
+    };
+
+    for (const category of ['Builder', 'Social', 'Degen', 'Player'] as const) {
+      const categoryLeaderboard = await easClient.getCategoryLeaderboard(category, 1000);
+      const categoryRanking = categoryLeaderboard.findIndex(score => score.fid === userFid) + 1;
+      categoryRankings[category] = categoryRanking;
     }
+
+    const evolutionData = [];
+    const today = new Date();
     
-    return NextResponse.json(scoreData);
-    
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      
+      const dayActivities = activityLog.filter(activity => {
+        const activityDate = new Date(activity.timestamp);
+        return activityDate.toDateString() === date.toDateString();
+      });
+
+      const activitiesBeforeDay = activityLog.filter(activity => {
+        const activityDate = new Date(activity.timestamp);
+        return activityDate <= date;
+      });
+
+      const totalScore = activitiesBeforeDay.reduce((sum, activity) => sum + activity.points, 0);
+      
+      const categoryScores = {
+        Builder: activitiesBeforeDay
+          .filter(activity => activity.category === 'Builder')
+          .reduce((sum, activity) => sum + activity.points, 0),
+        Social: activitiesBeforeDay
+          .filter(activity => activity.category === 'Social')
+          .reduce((sum, activity) => sum + activity.points, 0),
+        Degen: activitiesBeforeDay
+          .filter(activity => activity.category === 'Degen')
+          .reduce((sum, activity) => sum + activity.points, 0),
+        Player: activitiesBeforeDay
+          .filter(activity => activity.category === 'Player')
+          .reduce((sum, activity) => sum + activity.points, 0),
+      };
+
+      evolutionData.push({
+        date: date.toISOString(),
+        totalScore,
+        categoryScores,
+        rank: userScore.rank,
+        primaryCategory: Object.entries(categoryScores).reduce((a, b) => 
+          categoryScores[a[0] as keyof typeof categoryScores] > categoryScores[b[0] as keyof typeof categoryScores] ? a : b
+        )[0] as any
+      });
+    }
+
+    const primaryCategory = Object.entries(userScore.categoryScores).reduce((a, b) => 
+      userScore.categoryScores[a[0] as keyof typeof userScore.categoryScores] > userScore.categoryScores[b[0] as keyof typeof userScore.categoryScores] ? a : b
+    )[0] as any;
+
+    const response = {
+      fid: userScore.fid,
+      username: `@fid${userScore.fid}`, 
+      avatar: '', 
+      totalScore: userScore.totalScore,
+      categories: {
+        Builder: {
+          score: userScore.categoryScores.Builder,
+          rank: userScore.rank,
+          level: userScore.level,
+          progress: ((userScore.categoryScores.Builder % 100) / 100) * 100
+        },
+        Social: {
+          score: userScore.categoryScores.Social,
+          rank: userScore.rank,
+          level: userScore.level,
+          progress: ((userScore.categoryScores.Social % 100) / 100) * 100
+        },
+        Degen: {
+          score: userScore.categoryScores.Degen,
+          rank: userScore.rank,
+          level: userScore.level,
+          progress: ((userScore.categoryScores.Degen % 100) / 100) * 100
+        },
+        Player: {
+          score: userScore.categoryScores.Player,
+          rank: userScore.rank,
+          level: userScore.level,
+          progress: ((userScore.categoryScores.Player % 100) / 100) * 100
+        }
+      },
+      primaryCategory,
+      badges: userBadges.map(badge => ({
+        id: badge.badgeId,
+        name: badge.badgeName,
+        description: '',
+        category: badge.category,
+        rank: badge.rank,
+        earnedAt: badge.earnedAt,
+        imageUrl: ''
+      })),
+      season: userScore.season,
+      lastUpdated: userScore.lastUpdated,
+      evolution: evolutionData,
+      rankings: {
+        global: userRanking,
+        categories: categoryRankings
+      },
+      totalUsers: globalLeaderboard.length,
+      completedTasks: completedTasks.length,
+      recentActivities: activityLog.slice(0, 10)
+    };
+
+    return NextResponse.json(response);
+
   } catch (error) {
-    console.error('💥 Error calculating user score:', error);
+    console.error('Error fetching user score:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
